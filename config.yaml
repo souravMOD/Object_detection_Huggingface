@@ -1,0 +1,36 @@
+# Model & Training Configuration
+model_checkpoint: "PekingU/rtdetr_v2_r18vd"
+image_size: 480
+
+# Dataset
+train_images_dir: "datasets\\train"
+train_annotations: "datasets\\train.json"
+val_images_dir: "datasets\\val"
+val_annotations: "datasets\\val.json"
+#test_images_dir: "custom_dataset/test/images"
+#test_annotations: "custom_dataset/test/test.json"
+
+# Training
+num_epochs: 40
+learning_rate: 5e-5
+batch_size: 8
+num_classes: 5
+warmup_steps: 300
+num_workers: 2
+per_device_train_batch_size: 8
+metric_for_best_model: eval_loss
+greater_is_better: True
+load_best_model_at_end: True
+eval_strategy: epoch
+save_strategy: epoch
+save_total_limit: 2
+remove_unused_columns: False
+eval_do_concat_batches: False
+report_to: wandb
+early_stopping_patience: 3
+
+
+# Logging & Monitoring
+log_dir: "logs/"
+save_dir: "checkpoints/"
+report_to: "tensorboard"  # Options: tensorboard, wandb

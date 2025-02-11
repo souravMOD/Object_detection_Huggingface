@@ -1,0 +1,8 @@
+timm
+Pillow 
+numpy==1.*
+albumentations
+transformers[torch]
+accelerate>=0.26.0
+tensorboard
+pycocotools
