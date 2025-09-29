@@ -7,3 +7,6 @@ pillow
 pyyaml
 numpy
 torchmetrics
+
+wandb
+prometheus-client
