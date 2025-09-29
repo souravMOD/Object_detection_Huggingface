@@ -21,6 +21,20 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple
 
+# Optional ML‑Ops integrations
+try:
+    import wandb  # type: ignore
+except ImportError:
+    wandb = None  # wandb is optional and only used if installed and enabled
+
+try:
+    from prometheus_client import Gauge, start_http_server  # type: ignore
+    from transformers import TrainerCallback
+except ImportError:
+    Gauge = None  # type: ignore
+    start_http_server = None  # type: ignore
+    TrainerCallback = object  # fallback base class
+
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -143,7 +157,14 @@ class MAPEvaluator:
 
 
 def train(cfg: Dict[str, Any]) -> None:
-    """Execute a full training loop based on a configuration dictionary."""
+    """Execute a full training loop based on a configuration dictionary.
+
+    This function wires together the data pipeline, model and training loop. It also
+    optionally integrates with ML‑Ops tooling such as Weights & Biases (wandb) and
+    Prometheus/Grafana for metric reporting. These integrations are enabled via
+    configuration flags in ``cfg`` and require the corresponding packages to
+    be installed (see ``requirements.txt``).
+    """
     # Load datasets
     train_dataset, val_dataset = load_datasets(cfg)
     logger.info("Loaded %d training samples and %d validation samples", len(train_dataset), len(val_dataset))
@@ -157,7 +178,17 @@ def train(cfg: Dict[str, Any]) -> None:
     image_processor = get_image_processor(cfg["model_checkpoint"], cfg["image_size"])
     metrics_fn = MAPEvaluator(image_processor=image_processor, threshold=cfg.get("map_threshold", 0.01), id2label=id2label)
 
-    # Define training arguments with sensible defaults
+    # Determine reporting backend for Hugging Face Trainer. Default is ``none``.
+    report_to = cfg.get("report_to", "none")
+    # Optionally override with wandb if enabled
+    use_wandb = bool(cfg.get("use_wandb", False)) and wandb is not None
+    if use_wandb:
+        report_to = "wandb"
+        wandb_project = cfg.get("wandb_project", "object_detection")
+        wandb_run = wandb.init(project=wandb_project, config=cfg, name=cfg.get("wandb_run_name"))
+        logger.info("Initialized wandb run: %s", wandb_run.id)
+
+    # Create training arguments
     training_args = TrainingArguments(
         output_dir=cfg.get("save_dir", "checkpoints/"),
         num_train_epochs=cfg.get("num_epochs", 10),
@@ -165,7 +196,7 @@ def train(cfg: Dict[str, Any]) -> None:
         per_device_eval_batch_size=cfg.get("batch_size", 4),
         learning_rate=float(cfg.get("learning_rate", 5e-5)),
         logging_dir=cfg.get("log_dir", "logs/"),
-        report_to=cfg.get("report_to", "none"),
+        report_to=report_to,
         metric_for_best_model=cfg.get("metric_for_best_model", None),
         greater_is_better=cfg.get("greater_is_better", True),
         load_best_model_at_end=cfg.get("load_best_model_at_end", True),
@@ -176,6 +207,46 @@ def train(cfg: Dict[str, Any]) -> None:
         eval_accumulation_steps=None,
     )
 
+    # Set up Prometheus/Grafana metrics if requested and available
+    callbacks: List[Any] = [EarlyStoppingCallback(early_stopping_patience=cfg.get("early_stopping_patience", 3))]
+    use_prometheus = bool(cfg.get("use_prometheus", False)) and Gauge is not None and start_http_server is not None
+    if use_prometheus:
+        prometheus_port = int(cfg.get("prometheus_port", 8000))
+        start_http_server(prometheus_port)
+        logger.info("Started Prometheus metrics server on port %d", prometheus_port)
+
+        class PrometheusLoggingCallback(TrainerCallback):
+            """Callback to expose key metrics to Prometheus for Grafana dashboards."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                # Define gauges for metrics we care about. Additional metrics can be added here.
+                self.training_loss = Gauge("training_loss", "Training loss per evaluation step")
+                self.map_metric = Gauge("validation_map", "Validation mean average precision")
+
+            def on_log(self, args, state, control, logs=None, **kwargs) -> None:  # type: ignore[override]
+                if logs is None:
+                    return
+                # Capture training loss if present
+                loss_val = logs.get("loss")
+                if loss_val is not None:
+                    try:
+                        self.training_loss.set(float(loss_val))
+                    except Exception:
+                        pass
+
+            def on_evaluate(self, args, state, control, metrics, **kwargs) -> None:  # type: ignore[override]
+                # Capture mAP if present in evaluation metrics
+                map_val = metrics.get("map")
+                if map_val is not None:
+                    try:
+                        self.map_metric.set(float(map_val))
+                    except Exception:
+                        pass
+
+        callbacks.append(PrometheusLoggingCallback())
+
+    # Instantiate Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -183,11 +254,15 @@ def train(cfg: Dict[str, Any]) -> None:
         eval_dataset=val_dataset,
         data_collator=collate_fn,
         compute_metrics=metrics_fn,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=cfg.get("early_stopping_patience", 3))],
+        callbacks=callbacks,
     )
 
     logger.info("Starting training for %d epochs", training_args.num_train_epochs)
     trainer.train()
+
+    # Finish wandb run if used
+    if use_wandb:
+        wandb.finish()
 
 
 def main(argv: List[str] | None = None) -> None:
