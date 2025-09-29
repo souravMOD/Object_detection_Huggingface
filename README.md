@@ -2,11 +2,11 @@
 
 This repository contains an object detection pipeline built on top of the Hugging Face Transformers library.  It provides a full training loop, evaluation tools and inference utilities for detecting objects in images using modern transformer‑based detectors.
 
-The code is organized under the `updated_code` package and is designed to be production‑ready: imports are lightweight, configuration is externalized, and you can invoke functions from your own Python code or use the provided command‑line interfaces.
+The code is organized under the `` package and is designed to be production‑ready: imports are lightweight, configuration is externalized, and you can invoke functions from your own Python code or use the provided command‑line interfaces.
 
 ## Features
 
-- **Modular data pipeline** – dataset loading and pre‑processing are encapsulated in `updated_code/src/data_processing.py`.
+- **Modular data pipeline** – dataset loading and pre‑processing are encapsulated in `/src/data_processing.py`.
 - **Model adaptation** – automatically adapts a pretrained detector to the number of classes in your dataset.
 - **Training script** – configurable via YAML; supports early stopping and model checkpointing via the `transformers.Trainer` API.
 - **Evaluation and inference** – compute mean average precision (mAP) on a validation set or run detection on single images.
@@ -27,7 +27,7 @@ The code is organized under the `updated_code` package and is designed to be pro
    python -m venv .venv
    source .venv/bin/activate
    pip install --upgrade pip
-   pip install -r updated_code/requirements.txt
+   pip install -r /requirements.txt
    ```
 
    Additional optional dependencies for ML‑Ops are also included in the `requirements.txt` (e.g. `wandb` for experiment tracking and `prometheus-client` for metrics export).
@@ -36,14 +36,14 @@ The code is organized under the `updated_code` package and is designed to be pro
 
 1. **Prepare your dataset**
 
-   Create a YAML configuration file (see `updated_code/config.yaml` for an example) that specifies the paths to your training and validation datasets in COCO format, the pretrained model checkpoint to adapt, and training hyper‑parameters.
+   Create a YAML configuration file (see `/config.yaml` for an example) that specifies the paths to your training and validation datasets in COCO format, the pretrained model checkpoint to adapt, and training hyper‑parameters.
 
 2. **Training**
 
    Run the training script with your configuration file:
 
    ```bash
-   python -m updated_code.src.train --config updated_code/config.yaml
+   python -m .src.train --config /config.yaml
    ```
 
    The script will load the datasets, adapt the pretrained model, and train for the specified number of epochs.  Checkpoints are saved in the directory defined by `save_dir` in the config.  You can enable Weights & Biases logging and Prometheus metrics by adding the following fields to your configuration:
@@ -60,7 +60,7 @@ The code is organized under the `updated_code` package and is designed to be pro
    To evaluate a trained model checkpoint on the validation set:
 
    ```bash
-   python -m updated_code.src.evaluate --config updated_code/config.yaml --checkpoint path/to/checkpoint
+   python -m .src.evaluate --config /config.yaml --checkpoint path/to/checkpoint
    ```
 
    The evaluator computes mAP at multiple IoU thresholds and prints the results.  If wandb logging is enabled, evaluation metrics will also be reported there.
@@ -70,8 +70,8 @@ The code is organized under the `updated_code` package and is designed to be pro
    To run inference on a single image and print the detected objects:
 
    ```bash
-   python -m updated_code.src.inference --image path/to/image.jpg \
-     --config updated_code/config.yaml --checkpoint path/to/checkpoint
+   python -m .src.inference --image path/to/image.jpg \
+     --config /config.yaml --checkpoint path/to/checkpoint
    ```
 
    The script loads the model and image processor, performs detection, and prints out class labels, scores and bounding boxes.
