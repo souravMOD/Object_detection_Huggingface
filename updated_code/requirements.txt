@@ -1,0 +1,9 @@
+# Core ML and data libraries
+torch
+torchvision
+transformers
+albumentations
+pillow
+pyyaml
+numpy
+torchmetrics
