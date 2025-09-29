@@ -43,7 +43,7 @@ The code is organized under the `` package and is designed to be production‑re
    Run the training script with your configuration file:
 
    ```bash
-   python -m .src.train --config /config.yaml
+   python -m src.train --config /config.yaml
    ```
 
    The script will load the datasets, adapt the pretrained model, and train for the specified number of epochs.  Checkpoints are saved in the directory defined by `save_dir` in the config.  You can enable Weights & Biases logging and Prometheus metrics by adding the following fields to your configuration:
@@ -60,7 +60,7 @@ The code is organized under the `` package and is designed to be production‑re
    To evaluate a trained model checkpoint on the validation set:
 
    ```bash
-   python -m .src.evaluate --config /config.yaml --checkpoint path/to/checkpoint
+   python -m src.evaluate --config /config.yaml --checkpoint path/to/checkpoint
    ```
 
    The evaluator computes mAP at multiple IoU thresholds and prints the results.  If wandb logging is enabled, evaluation metrics will also be reported there.
@@ -70,7 +70,7 @@ The code is organized under the `` package and is designed to be production‑re
    To run inference on a single image and print the detected objects:
 
    ```bash
-   python -m .src.inference --image path/to/image.jpg \
+   python -m src.inference --image path/to/image.jpg \
      --config /config.yaml --checkpoint path/to/checkpoint
    ```
 
