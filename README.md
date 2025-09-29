@@ -1,71 +1,95 @@
-# Object Detection with Huggingface
+# Object Detection with Hugging Face
 
-This project demonstrates how to perform object detection using the Huggingface library. It includes scripts and notebooks to train and evaluate object detection models.
+This repository contains an object detection pipeline built on top of the Hugging Face Transformers library.  It provides a full training loop, evaluation tools and inference utilities for detecting objects in images using modern transformer‑based detectors.
 
-## Project Structure
+The code is organized under the `updated_code` package and is designed to be production‑ready: imports are lightweight, configuration is externalized, and you can invoke functions from your own Python code or use the provided command‑line interfaces.
 
-```
-Object_detection_Huggingface/
-│
-├── data/                   # Directory for datasets
-│   └── ...                 # Your dataset files
-│
-├── notebooks/              # Jupyter notebooks for experiments
-│   └── ...                 # Your notebook files
-│
-├── scripts/                # Python scripts for training, evaluation, and inference
-│   ├── train.py            # Script to train the model
-│   ├── evaluate.py         # Script to evaluate the model
-│   └── inference.py        # Script to run inference on new images
-│
-├── config.yaml             # Configuration file for training and evaluation
-├── requirements.txt        # List of dependencies
-├── LICENSE                 # License file
-└── README.md               # Project README file
-```
+## Features
+
+- **Modular data pipeline** – dataset loading and pre‑processing are encapsulated in `updated_code/src/data_processing.py`.
+- **Model adaptation** – automatically adapts a pretrained detector to the number of classes in your dataset.
+- **Training script** – configurable via YAML; supports early stopping and model checkpointing via the `transformers.Trainer` API.
+- **Evaluation and inference** – compute mean average precision (mAP) on a validation set or run detection on single images.
+- **ML‑Ops integration** – optional logging to [Weights & Biases](https://wandb.ai/) and metric export via [Prometheus](https://prometheus.io/) for use in dashboards such as Grafana.
 
 ## Installation
 
-1. Clone the repository:
-    ```bash
-    git clone https://github.com/yourusername/Object_detection_Huggingface.git
-    cd Object_detection_Huggingface
-    ```
+1. Clone this repository and navigate into it:
 
-2. Create and activate a virtual environment:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-    ```
+   ```bash
+   git clone https://github.com/souravMOD/Object_detection_Huggingface.git
+   cd Object_detection_Huggingface
+   ```
 
-3. Install the required dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+2. Install the required Python packages.  We recommend using a virtual environment:
 
-## Usage
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   pip install -r updated_code/requirements.txt
+   ```
 
-1. Prepare your dataset and place it in the `data` directory.
+   Additional optional dependencies for ML‑Ops are also included in the `requirements.txt` (e.g. `wandb` for experiment tracking and `prometheus-client` for metrics export).
 
-2. Train the model:
-    ```bash
-    python scripts/train.py 
-    ```
+## Quick Start
 
-3. Evaluate the model:
-    ```bash
-    python scripts/evaluate.py 
-    ```
+1. **Prepare your dataset**
 
-4. Run inference on new images:
-    ```bash
-    python scripts/inference.py 
-    ```
+   Create a YAML configuration file (see `updated_code/config.yaml` for an example) that specifies the paths to your training and validation datasets in COCO format, the pretrained model checkpoint to adapt, and training hyper‑parameters.
 
-## Contributing
+2. **Training**
 
-Contributions are welcome! Please open an issue or submit a pull request.
+   Run the training script with your configuration file:
+
+   ```bash
+   python -m updated_code.src.train --config updated_code/config.yaml
+   ```
+
+   The script will load the datasets, adapt the pretrained model, and train for the specified number of epochs.  Checkpoints are saved in the directory defined by `save_dir` in the config.  You can enable Weights & Biases logging and Prometheus metrics by adding the following fields to your configuration:
+
+   ```yaml
+   use_wandb: true        # set to true to enable wandb logging
+   wandb_project: my-project  # optional project name for wandb
+   use_prometheus: true   # export metrics via Prometheus
+   prometheus_port: 8000  # port on which to expose Prometheus metrics
+   ```
+
+3. **Evaluation**
+
+   To evaluate a trained model checkpoint on the validation set:
+
+   ```bash
+   python -m updated_code.src.evaluate --config updated_code/config.yaml --checkpoint path/to/checkpoint
+   ```
+
+   The evaluator computes mAP at multiple IoU thresholds and prints the results.  If wandb logging is enabled, evaluation metrics will also be reported there.
+
+4. **Inference**
+
+   To run inference on a single image and print the detected objects:
+
+   ```bash
+   python -m updated_code.src.inference --image path/to/image.jpg \
+     --config updated_code/config.yaml --checkpoint path/to/checkpoint
+   ```
+
+   The script loads the model and image processor, performs detection, and prints out class labels, scores and bounding boxes.
+
+## ML‑Ops Integrations
+
+### Weights & Biases
+
+The training script supports experiment tracking via [Weights & Biases](https://wandb.ai/).  Set `use_wandb: true` in your configuration and provide an optional `wandb_project` name to start logging metrics, loss curves and model checkpoints to your wandb workspace.  You may also set `wandb_run_name` if you want a custom run name.
+
+### Prometheus & Grafana
+
+For operational monitoring, the training script can export key metrics such as training loss and validation mAP via a Prometheus HTTP server.  To enable this, set `use_prometheus: true` and optionally `prometheus_port` in your configuration.  Grafana can then scrape these metrics from the specified port and visualize them on a dashboard of your choice.
+
+## Cleaning up old code
+
+The legacy code in this repository (`logs/`, `scripts/`, `src/`, `main.py`, `config.yaml`, and `requirements.txt` at the root) has been removed in favor of the new modular implementation under `updated_code/`.  Only the `updated_code` package and this documentation are needed going forward.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License.  See the [LICENSE](LICENSE) file for details.
