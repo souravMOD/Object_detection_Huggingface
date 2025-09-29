@@ -86,9 +86,6 @@ The training script supports experiment tracking via [Weights & Biases](https:
 
 For operational monitoring, the training script can export key metrics such as training loss and validation mAP via a Prometheus HTTP server.  To enable this, set `use_prometheus: true` and optionally `prometheus_port` in your configuration.  Grafana can then scrape these metrics from the specified port and visualize them on a dashboard of your choice.
 
-## Cleaning up old code
-
-The legacy code in this repository (`logs/`, `scripts/`, `src/`, `main.py`, `config.yaml`, and `requirements.txt` at the root) has been removed in favor of the new modular implementation under `updated_code/`.  Only the `updated_code` package and this documentation are needed going forward.
 
 ## License
 
