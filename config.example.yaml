@@ -1,0 +1,52 @@
+## ─────────────────────────────────────────────────────────────────────
+## Example configuration for hf-object-detection
+##
+## Copy this file:  cp config.example.yaml config.yaml
+## Then edit the paths below to point at your COCO-format dataset.
+##
+## Every field has a sensible default — you only need to set the ones
+## you want to change.  Environment variables prefixed with HF_DET_
+## override any value here (e.g. HF_DET_BATCH_SIZE=16).
+## ─────────────────────────────────────────────────────────────────────
+
+## Model & image size
+model_checkpoint: "PekingU/rtdetr_v2_r18vd"   # Any HF object-detection model
+image_size: 480
+
+## Dataset paths (COCO format)
+train_images_dir: "datasets/train"
+train_annotations: "datasets/train.json"
+val_images_dir: "datasets/val"
+val_annotations: "datasets/val.json"
+
+## Training hyperparameters
+num_epochs: 40
+learning_rate: 5e-5
+batch_size: 8
+early_stopping_patience: 3
+map_threshold: 0.01
+
+## Trainer settings
+metric_for_best_model: "eval_loss"
+greater_is_better: true
+load_best_model_at_end: true
+eval_strategy: "epoch"
+save_strategy: "epoch"
+save_total_limit: 2
+remove_unused_columns: false
+report_to: "tensorboard"
+
+## Output directories
+log_dir: "logs/"
+save_dir: "checkpoints/"
+
+## Inference
+score_threshold: 0.5
+
+## ─── MLOps (optional) ────────────────────────────────────────────────
+# use_wandb: true
+# wandb_project: "my-detection-project"
+# wandb_run_name: "experiment-1"
+#
+# use_prometheus: true
+# prometheus_port: 8000

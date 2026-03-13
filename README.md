@@ -1,92 +1,191 @@
 # Object Detection with Hugging Face
 
-This repository contains an object detection pipeline built on top of the Hugging Face Transformers library.  It provides a full training loop, evaluation tools and inference utilities for detecting objects in images using modern transformer‑based detectors.
-
-The code is organized under the `` package and is designed to be production‑ready: imports are lightweight, configuration is externalized, and you can invoke functions from your own Python code or use the provided command‑line interfaces.
+A **plug-and-play** object detection pipeline built on [Hugging Face Transformers](https://huggingface.co/docs/transformers). Drop in your COCO-format dataset, point at any HuggingFace detection model, and start training — or run inference in three lines of Python.
 
 ## Features
 
-- **Modular data pipeline** – dataset loading and pre‑processing are encapsulated in `/src/data_processing.py`.
-- **Model adaptation** – automatically adapts a pretrained detector to the number of classes in your dataset.
-- **Training script** – configurable via YAML; supports early stopping and model checkpointing via the `transformers.Trainer` API.
-- **Evaluation and inference** – compute mean average precision (mAP) on a validation set or run detection on single images.
-- **ML‑Ops integration** – optional logging to [Weights & Biases](https://wandb.ai/) and metric export via [Prometheus](https://prometheus.io/) for use in dashboards such as Grafana.
-
-## Installation
-
-1. Clone this repository and navigate into it:
-
-   ```bash
-   git clone https://github.com/souravMOD/Object_detection_Huggingface.git
-   cd Object_detection_Huggingface
-   ```
-
-2. Install the required Python packages.  We recommend using a virtual environment:
-
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install --upgrade pip
-   pip install -r /requirements.txt
-   ```
-
-   Additional optional dependencies for ML‑Ops are also included in the `requirements.txt` (e.g. `wandb` for experiment tracking and `prometheus-client` for metrics export).
+- **3-line inference** — `from src import detect; detect("photo.jpg")`
+- **Typed, validated config** — dataclass with env-var overrides (`HF_DET_*`)
+- **Modular data pipeline** — COCO dataset loader with Albumentations augmentations
+- **Auto model adaptation** — swaps classification heads to match your class count
+- **HF Trainer integration** — early stopping, checkpointing, mixed precision
+- **MLOps ready** — optional Weights & Biases and Prometheus/Grafana support
+- **CI/CD** — GitHub Actions for lint + test + Docker build
+- **Installable package** — `pip install -e .` with CLI entry points
 
 ## Quick Start
 
-1. **Prepare your dataset**
+### Install
 
-   Create a YAML configuration file (see `/config.yaml` for an example) that specifies the paths to your training and validation datasets in COCO format, the pretrained model checkpoint to adapt, and training hyper‑parameters.
+```bash
+git clone https://github.com/souravMOD/Object_detection_Huggingface.git
+cd Object_detection_Huggingface
 
-2. **Training**
+# Option A: pip install (recommended)
+pip install -e .
 
-   Run the training script with your configuration file:
+# Option B: requirements.txt
+pip install -r requirements.txt
 
-   ```bash
-   python -m src.train --config /config.yaml
-   ```
+# With MLOps extras
+pip install -e ".[mlops]"
 
-   The script will load the datasets, adapt the pretrained model, and train for the specified number of epochs.  Checkpoints are saved in the directory defined by `save_dir` in the config.  You can enable Weights & Biases logging and Prometheus metrics by adding the following fields to your configuration:
+# With dev tools (pytest, ruff, pre-commit)
+pip install -e ".[dev]"
+```
 
-   ```yaml
-   use_wandb: true        # set to true to enable wandb logging
-   wandb_project: my-project  # optional project name for wandb
-   use_prometheus: true   # export metrics via Prometheus
-   prometheus_port: 8000  # port on which to expose Prometheus metrics
-   ```
+### Detect objects (plug-and-play)
 
-3. **Evaluation**
+```python
+from src import detect
 
-   To evaluate a trained model checkpoint on the validation set:
+# With a fine-tuned checkpoint
+predictions = detect("photo.jpg", checkpoint="checkpoints/best")
 
-   ```bash
-   python -m src.evaluate --config /config.yaml --checkpoint path/to/checkpoint
-   ```
+# With a pretrained HuggingFace model (zero config)
+predictions = detect("photo.jpg", model_checkpoint="facebook/detr-resnet-50")
 
-   The evaluator computes mAP at multiple IoU thresholds and prints the results.  If wandb logging is enabled, evaluation metrics will also be reported there.
+for p in predictions:
+    print(f"{p['label']}: {p['score']:.2f} at {p['box']}")
+```
 
-4. **Inference**
+### Train on your dataset
 
-   To run inference on a single image and print the detected objects:
+1. Prepare your dataset in COCO format
+2. Copy and edit the config:
 
-   ```bash
-   python -m src.inference --image path/to/image.jpg \
-     --config /config.yaml --checkpoint path/to/checkpoint
-   ```
+```bash
+cp config.example.yaml config.yaml
+# Edit paths in config.yaml to point at your dataset
+```
 
-   The script loads the model and image processor, performs detection, and prints out class labels, scores and bounding boxes.
+3. Train:
 
-## ML‑Ops Integrations
+```python
+from src import train_model
 
-### Weights & Biases
+# One-liner
+train_model("config.yaml")
 
-The training script supports experiment tracking via [Weights & Biases](https://wandb.ai/).  Set `use_wandb: true` in your configuration and provide an optional `wandb_project` name to start logging metrics, loss curves and model checkpoints to your wandb workspace.  You may also set `wandb_run_name` if you want a custom run name.
+# With overrides
+train_model("config.yaml", num_epochs=10, batch_size=4)
+```
+
+Or via CLI:
+
+```bash
+python -m src.train --config config.yaml
+# or after pip install -e .
+hf-detect-train --config config.yaml
+```
+
+### Evaluate
+
+```python
+from src import evaluate_model
+
+metrics = evaluate_model("config.yaml", checkpoint="checkpoints/best")
+print(f"mAP: {metrics.get('eval_map', 'N/A')}")
+```
+
+```bash
+python -m src.evaluate --config config.yaml --checkpoint checkpoints/best
+```
+
+## Configuration
+
+All settings live in a single YAML file. See [`config.example.yaml`](config.example.yaml) for the full reference.
+
+Every field can be overridden via environment variables prefixed with `HF_DET_`:
+
+```bash
+HF_DET_BATCH_SIZE=16 HF_DET_LEARNING_RATE=1e-4 python -m src.train --config config.yaml
+```
+
+Or programmatically:
+
+```python
+from src.config import DetectionConfig
+
+cfg = DetectionConfig(model_checkpoint="facebook/detr-resnet-50", batch_size=16)
+cfg = DetectionConfig.from_yaml("config.yaml")
+cfg = DetectionConfig.from_dict({"batch_size": 16})
+```
+
+## Project Structure
+
+```
+├── src/
+│   ├── __init__.py          # Plug-and-play API (detect, train_model, evaluate_model)
+│   ├── config.py            # Typed, validated DetectionConfig dataclass
+│   ├── data_processing.py   # COCO dataset, augmentations, image processor
+│   ├── model.py             # Model loading and head adaptation
+│   ├── train.py             # Training loop with Trainer API
+│   ├── evaluate.py          # mAP evaluation
+│   └── inference.py         # Single-image inference
+├── tests/                   # pytest test suite
+├── config.yaml              # Your config (git-ignored or committed)
+├── config.example.yaml      # Template config with documentation
+├── pyproject.toml           # Package metadata, deps, tool config
+├── requirements.txt         # Flat dependency list
+├── Dockerfile               # Multi-stage (production + dev)
+├── Makefile                 # Convenience commands
+├── .pre-commit-config.yaml  # Code quality hooks
+└── .github/workflows/ci.yml # CI pipeline
+```
+
+## Development
+
+```bash
+# Install with dev extras
+pip install -e ".[all]"
+
+# Run tests
+make test
+
+# Lint
+make lint
+
+# Auto-format
+make format
+
+# Set up pre-commit hooks
+pre-commit install
+```
+
+## Docker
+
+```bash
+# Build production image
+docker build --target production -t hf-detect .
+
+# Train
+docker run -v $(pwd)/datasets:/app/datasets -v $(pwd)/checkpoints:/app/checkpoints hf-detect
+
+# Build dev image and run tests
+docker build --target dev -t hf-detect-dev .
+docker run hf-detect-dev
+```
+
+## MLOps Integrations
+
+### Weights & Biases
+
+```yaml
+use_wandb: true
+wandb_project: "my-detection-project"
+wandb_run_name: "experiment-1"
+```
 
 ### Prometheus & Grafana
 
-For operational monitoring, the training script can export key metrics such as training loss and validation mAP via a Prometheus HTTP server.  To enable this, set `use_prometheus: true` and optionally `prometheus_port` in your configuration.  Grafana can then scrape these metrics from the specified port and visualize them on a dashboard of your choice.
+```yaml
+use_prometheus: true
+prometheus_port: 8000
+```
 
+Exports `training_loss` and `validation_map` gauges for Grafana dashboards.
 
 ## License
 
-This project is licensed under the Apache 2.0 License.  See the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU GPLv3 License. See [LICENSE](LICENSE) for details.
